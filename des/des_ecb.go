@@ -3,8 +3,16 @@ package des
 import (
 	"crypto/cipher"
 	"crypto/des"
-	"errors"
+	"fmt"
 )
+
+// checkIVLen iv 不足一个分组时，iv[:blockSize] 会越界 panic，此处提前拦截。
+func checkIVLen(iv []byte, blockSize int) error {
+	if len(iv) < blockSize {
+		return fmt.Errorf("des: invalid iv length %d, must be at least %d", len(iv), blockSize)
+	}
+	return nil
+}
 
 // 3DES-ECB 加密数据
 func ECBTripleEncrypt(originData, key, iv []byte) ([]byte, error) {
@@ -39,8 +47,12 @@ func ecbTripleEncrypt(originData, key, iv []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	blockMode := cipher.NewCBCEncrypter(block, iv[:block.BlockSize()])
-	originData = PKCS7Padding(originData, block.BlockSize())
+	blockSize := block.BlockSize()
+	if err = checkIVLen(iv, blockSize); err != nil {
+		return nil, err
+	}
+	blockMode := cipher.NewCBCEncrypter(block, iv[:blockSize])
+	originData = PKCS7Padding(originData, blockSize)
 	secretData := make([]byte, len(originData))
 	blockMode.CryptBlocks(secretData, originData)
 	return secretData, nil
@@ -51,12 +63,16 @@ func ecbTripleDecrypt(secretData, desKey, iv []byte) (originByte []byte, err err
 	if err != nil {
 		return nil, err
 	}
-	blockMode := cipher.NewCBCDecrypter(block, iv[:block.BlockSize()])
+	blockSize := block.BlockSize()
+	if err = checkIVLen(iv, blockSize); err != nil {
+		return nil, err
+	}
+	if err = checkCipherLen(secretData, blockSize); err != nil {
+		return nil, err
+	}
+	blockMode := cipher.NewCBCDecrypter(block, iv[:blockSize])
 	originByte = make([]byte, len(secretData))
 	blockMode.CryptBlocks(originByte, secretData)
-	if len(originByte) == 0 {
-		return nil, errors.New("blockMode.CryptBlocks error")
-	}
 	return PKCS7UnPadding(originByte), nil
 }
 
@@ -65,8 +81,12 @@ func ecbEncrypt(originData, key, iv []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	blockMode := cipher.NewCBCEncrypter(block, iv[:block.BlockSize()])
-	originData = PKCS7Padding(originData, block.BlockSize())
+	blockSize := block.BlockSize()
+	if err = checkIVLen(iv, blockSize); err != nil {
+		return nil, err
+	}
+	blockMode := cipher.NewCBCEncrypter(block, iv[:blockSize])
+	originData = PKCS7Padding(originData, blockSize)
 	secretData := make([]byte, len(originData))
 	blockMode.CryptBlocks(secretData, originData)
 	return secretData, nil
@@ -77,11 +97,15 @@ func ecbDecrypt(secretData, desKey, iv []byte) (originByte []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	blockMode := cipher.NewCBCDecrypter(block, iv[:block.BlockSize()])
+	blockSize := block.BlockSize()
+	if err = checkIVLen(iv, blockSize); err != nil {
+		return nil, err
+	}
+	if err = checkCipherLen(secretData, blockSize); err != nil {
+		return nil, err
+	}
+	blockMode := cipher.NewCBCDecrypter(block, iv[:blockSize])
 	originByte = make([]byte, len(secretData))
 	blockMode.CryptBlocks(originByte, secretData)
-	if len(originByte) == 0 {
-		return nil, errors.New("blockMode.CryptBlocks error")
-	}
 	return PKCS7UnPadding(originByte), nil
 }

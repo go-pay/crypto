@@ -3,7 +3,7 @@ package aes
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"errors"
+	"fmt"
 )
 
 // AES-ECB 加密数据
@@ -12,6 +12,8 @@ func ECBEncrypt(originData, key []byte) ([]byte, error) {
 }
 
 // AES-ECB 解密数据
+//
+// secretData 长度必须为分组长度（16 字节）的非零整数倍。
 func ECBDecrypt(secretData, key []byte) ([]byte, error) {
 	return ecbDecrypt(secretData, key)
 }
@@ -33,12 +35,14 @@ func ecbDecrypt(secretData, key []byte) (originByte []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
+	blockSize := block.BlockSize()
+	// 密文常来自外部输入，长度非分组整数倍时 CryptBlocks 会 panic，此处提前拦截。
+	if len(secretData) == 0 || len(secretData)%blockSize != 0 {
+		return nil, fmt.Errorf("aes: invalid ciphertext length %d, must be a non-zero multiple of %d", len(secretData), blockSize)
+	}
 	blockMode := newECBDecrypter(block)
 	originByte = make([]byte, len(secretData))
 	blockMode.CryptBlocks(originByte, secretData)
-	if len(originByte) == 0 {
-		return nil, errors.New("blockMode.CryptBlocks error")
-	}
 	return PKCS7UnPadding(originByte), nil
 }
 

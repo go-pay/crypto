@@ -3,8 +3,17 @@ package des
 import (
 	"crypto/cipher"
 	"crypto/des"
-	"errors"
+	"fmt"
 )
+
+// checkCipherLen 密文长度必须为分组长度的非零整数倍，否则 CryptBlocks 会 panic。
+// 密文常来自外部输入，这里提前拦截并以 error 返回。
+func checkCipherLen(secretData []byte, blockSize int) error {
+	if len(secretData) == 0 || len(secretData)%blockSize != 0 {
+		return fmt.Errorf("des: invalid ciphertext length %d, must be a non-zero multiple of %d", len(secretData), blockSize)
+	}
+	return nil
+}
 
 // 3DES-CBC 加密数据
 func CBCTripleEncrypt(originData, key []byte) ([]byte, error) {
@@ -45,12 +54,12 @@ func cbcTripleDecrypt(secretData, key []byte) (originByte []byte, err error) {
 		return nil, err
 	}
 	blockSize := block.BlockSize()
+	if err = checkCipherLen(secretData, blockSize); err != nil {
+		return nil, err
+	}
 	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize])
 	originByte = make([]byte, len(secretData))
 	blockMode.CryptBlocks(originByte, secretData)
-	if len(originByte) == 0 {
-		return nil, errors.New("blockMode.CryptBlocks error")
-	}
 	return PKCS7UnPadding(originByte), nil
 }
 
@@ -73,11 +82,11 @@ func cbcDecrypt(secretData, key []byte) (originByte []byte, err error) {
 		return nil, err
 	}
 	blockSize := block.BlockSize()
+	if err = checkCipherLen(secretData, blockSize); err != nil {
+		return nil, err
+	}
 	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize])
 	originByte = make([]byte, len(secretData))
 	blockMode.CryptBlocks(originByte, secretData)
-	if len(originByte) == 0 {
-		return nil, errors.New("blockMode.CryptBlocks error")
-	}
 	return PKCS7UnPadding(originByte), nil
 }
